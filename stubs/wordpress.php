@@ -576,8 +576,17 @@ if (!function_exists('delete_post_meta')) {
 }
 
 if (!function_exists('wp_insert_post')) {
-    /** @param array<string, mixed> $post */
-    function wp_insert_post(array $post = [], bool $wpError = false): int
+    /**
+     * Return type is int|\WP_Error, matching WordPress: with $wpError true it
+     * hands back a WP_Error on failure. Patchwork keeps a function's declared
+     * signature when Brain Monkey redefines it, so a narrower `int` here would
+     * make `Functions\expect('wp_insert_post')->andReturn($wpError)` a
+     * TypeError — and simulating a failed insert is exactly what a test needs
+     * to do.
+     *
+     * @param array<string, mixed> $post
+     */
+    function wp_insert_post(array $post = [], bool $wpError = false): int|\WP_Error
     {
         WpState::$insertedPosts[] = $post;
 
@@ -593,8 +602,12 @@ if (!function_exists('wp_insert_post')) {
 }
 
 if (!function_exists('wp_update_post')) {
-    /** @param array<string, mixed> $post */
-    function wp_update_post(array $post = [], bool $wpError = false): int
+    /**
+     * int|\WP_Error for the same reason as wp_insert_post() above.
+     *
+     * @param array<string, mixed> $post
+     */
+    function wp_update_post(array $post = [], bool $wpError = false): int|\WP_Error
     {
         WpState::$updatedPosts[] = $post;
 
@@ -649,7 +662,12 @@ if (!function_exists('get_posts')) {
 }
 
 if (!function_exists('get_permalink')) {
-    function get_permalink(mixed $post = 0): string
+    /**
+     * string|false, matching WordPress: it returns false for a post that does
+     * not exist. Declaring plain `string` made that case unreachable in a
+     * test, because Patchwork keeps the declared return type.
+     */
+    function get_permalink(mixed $post = 0): string|false
     {
         return 'https://example.test/?p=' . (is_object($post) ? ($post->ID ?? 0) : (int) $post);
     }

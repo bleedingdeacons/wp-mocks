@@ -292,6 +292,28 @@ final class WordPressStubsTest extends TestCase
     }
 
     /**
+     * Signatures a test has to be able to widen.
+     *
+     * Patchwork keeps a function's declared return type when Brain Monkey
+     * redefines it, so a stub narrower than WordPress's own makes a real
+     * scenario untestable: wp_insert_post()/wp_update_post() hand back a
+     * WP_Error on failure, and get_permalink() returns false for a post that
+     * does not exist.
+     */
+    public function testFailureShapedReturnsAreExpressible(): void
+    {
+        $error = new \WP_Error('db_insert_error', 'could not insert');
+
+        \Brain\Monkey\Functions\when('wp_insert_post')->justReturn($error);
+        \Brain\Monkey\Functions\when('wp_update_post')->justReturn($error);
+        \Brain\Monkey\Functions\when('get_permalink')->justReturn(false);
+
+        self::assertSame($error, wp_insert_post(['post_title' => 'x']));
+        self::assertSame($error, wp_update_post(['ID' => 1]));
+        self::assertFalse(get_permalink(1));
+    }
+
+    /**
      * Constants describing a particular installation are deliberately left to
      * the consuming plugin's bootstrap — several in this suite point ABSPATH
      * at a real temp directory so filesystem paths can be exercised.
