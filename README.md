@@ -111,7 +111,7 @@ can paper over it.
 
 | Stub group | Covers |
 |---|---|
-| `wordpress` | options, transients, object cache, posts, meta, taxonomies, users and caps, nonces, URLs, admin menus, assets, shortcodes, the HTTP API (including the cookie jar), formatting, escaping, i18n, and the core constants (`ARRAY_A` and the other `$wpdb` output formats, `*_IN_SECONDS`) |
+| `wordpress` | options, transients, object cache, posts, meta, media, taxonomies, users and caps, nonces, URLs, cron, mail, the filesystem helpers, admin menus, assets, shortcodes, the HTTP API (including the cookie jar), formatting, escaping, i18n, and the core constants (`ARRAY_A` and the other `$wpdb` output formats, `*_IN_SECONDS`) |
 | `rest` | `WP_REST_Request`, `WP_REST_Response`, `WP_REST_Server`'s method constants, `rest_ensure_response`. Assumes `wordpress` is loaded too — `rest_ensure_response()` passes a `WP_Error` straight through. `register_rest_route()` itself is in `wordpress`, recording into `WpState::$restRoutes`, so a plugin only asserting that a route was *declared* does not need this group |
 | `acf` | `get_field`, `update_field`, `get_fields`, `get_field_object`, `acf_get_field`, `acf_add_local_field_group`, `acf_add_validation_error` |
 | `sentinel` | `wp_log()` and `Sentinel_Log_Channel`, memoised per channel so `HasLogger`'s cached channel is the one a test asserts on |

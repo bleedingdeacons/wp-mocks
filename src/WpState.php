@@ -145,6 +145,42 @@ final class WpState
     /** @var array<int, array<int, mixed>> Messages passed to wp_log(), as [channel, level, message, context]. */
     public static array $logs = [];
 
+    /**
+     * Scheduled cron events, keyed by hook, holding the next run timestamp.
+     *
+     * wp_next_scheduled() reads this and wp_schedule_event() writes it, so an
+     * activation routine's "schedule unless already scheduled" branch can be
+     * driven both ways.
+     *
+     * @var array<string, int>
+     */
+    public static array $cron = [];
+
+    /** @var array<int, array{to: mixed, subject: string, message: string, headers: mixed, attachments: array<int, string>}> Everything passed to wp_mail(). */
+    public static array $mail = [];
+
+    /** Value wp_mail() hands back; false simulates a send failure. */
+    public static bool $mailResult = true;
+
+    /**
+     * Featured-image ids keyed by post id, read by get_post_thumbnail_id().
+     *
+     * @var array<int, int>
+     */
+    public static array $thumbnails = [];
+
+    /**
+     * Attachment metadata keyed by attachment id, as
+     * [url, width, height, isIntermediate] — the tuple
+     * wp_get_attachment_image_src() returns.
+     *
+     * @var array<int, array{0: string, 1: int, 2: int, 3: bool}>
+     */
+    public static array $attachments = [];
+
+    /** Whether is_singular() reports a single-post view. */
+    public static bool $isSingular = false;
+
     public static function reset(): void
     {
         self::$options = [];
@@ -182,6 +218,12 @@ final class WpState
         self::$isSsl = true;
         self::$now = '2026-07-24 12:00:00';
         self::$logs = [];
+        self::$cron = [];
+        self::$mail = [];
+        self::$mailResult = true;
+        self::$thumbnails = [];
+        self::$attachments = [];
+        self::$isSingular = false;
         // $pluginSlug is deliberately NOT reset: a plugin sets it once in its
         // bootstrap, and clearing it between tests would undo that.
     }

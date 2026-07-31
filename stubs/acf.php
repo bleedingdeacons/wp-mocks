@@ -126,3 +126,22 @@ if (!function_exists('acf_add_validation_error')) {
         WpState::$options['__acf_validation_errors'][] = ['input' => $input, 'message' => $message];
     }
 }
+
+if (!function_exists('acf_save_post')) {
+    /**
+     * Writes the supplied values through update_field(), which is what a
+     * caller passing $values is really after. With no values it is a no-op:
+     * the real one saves $_POST['acf'], and a test driving a save through the
+     * superglobal wants a real ACF, not a stand-in.
+     *
+     * @param array<string, mixed>|null $values
+     */
+    function acf_save_post(mixed $postId = 0, ?array $values = null): bool
+    {
+        foreach ($values ?? [] as $selector => $value) {
+            update_field($selector, $value, $postId);
+        }
+
+        return true;
+    }
+}
