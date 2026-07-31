@@ -706,6 +706,140 @@ if (!function_exists('register_post_type')) {
     }
 }
 
+if (!function_exists('get_page_by_path')) {
+    /**
+     * Matches on post_name, which is where WordPress ends up for a top-level
+     * page. Nested paths are not modelled — a test wanting hierarchy wants a
+     * real query.
+     */
+    function get_page_by_path(string $path, mixed $output = null, mixed $postType = 'page'): ?object
+    {
+        $slug = trim($path, '/');
+
+        foreach (WpState::$posts as $post) {
+            if (($post->post_name ?? '') === $slug) {
+                return $post;
+            }
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('url_to_postid')) {
+    /**
+     * Real WordPress parses the permalink structure; here the id is read back
+     * out of the ?p= form get_permalink() produces, and anything else is 0 —
+     * which is what WordPress answers for an unrecognised URL.
+     */
+    function url_to_postid(string $url): int
+    {
+        return preg_match('/[?&]p=(\d+)/', $url, $m) === 1 ? (int) $m[1] : 0;
+    }
+}
+
+if (!function_exists('wp_publish_post')) {
+    function wp_publish_post(mixed $post): void
+    {
+        $id = is_object($post) ? (int) ($post->ID ?? 0) : (int) $post;
+
+        WpState::$postStatuses[$id] = 'publish';
+
+        if (isset(WpState::$posts[$id])) {
+            WpState::$posts[$id]->post_status = 'publish';
+        }
+    }
+}
+
+if (!function_exists('wp_trash_post')) {
+    /**
+     * Returns the trashed post, or false when there is nothing at that id —
+     * the same shape WordPress uses to signal failure.
+     */
+    function wp_trash_post(int $postId = 0): object|false
+    {
+        if (!isset(WpState::$posts[$postId])) {
+            return false;
+        }
+
+        WpState::$postStatuses[$postId] = 'trash';
+        WpState::$posts[$postId]->post_status = 'trash';
+
+        return WpState::$posts[$postId];
+    }
+}
+
+if (!function_exists('clean_post_cache')) {
+    function clean_post_cache(mixed $post): void
+    {
+    }
+}
+
+if (!function_exists('get_the_time')) {
+    /**
+     * string|false, as WordPress declares it — false when the post cannot be
+     * resolved. Callers passing the result into a string parameter under
+     * strict_types would get a TypeError on the false branch, which is the
+     * point: it is a real branch.
+     */
+    function get_the_time(string $format = '', mixed $post = null): string|false
+    {
+        $timestamp = (int) strtotime(WpState::$now);
+
+        return $format === '' ? (string) $timestamp : date($format, $timestamp);
+    }
+}
+
+if (!function_exists('get_post_timestamp')) {
+    function get_post_timestamp(mixed $post = null, string $field = 'date'): int|false
+    {
+        return (int) strtotime(WpState::$now);
+    }
+}
+
+// ── Media ────────────────────────────────────────────────────────────
+
+if (!function_exists('get_post_thumbnail_id')) {
+    /**
+     * WordPress returns 0 (or false) when a post has no featured image, and
+     * code branches on that, so an unseeded post answers 0 rather than a
+     * plausible id.
+     */
+    function get_post_thumbnail_id(mixed $post = null): int
+    {
+        $id = is_object($post) ? (int) ($post->ID ?? 0) : (int) $post;
+
+        return WpState::$thumbnails[$id] ?? 0;
+    }
+}
+
+if (!function_exists('has_post_thumbnail')) {
+    function has_post_thumbnail(mixed $post = null): bool
+    {
+        return get_post_thumbnail_id($post) > 0;
+    }
+}
+
+if (!function_exists('wp_get_attachment_image_src')) {
+    /**
+     * The [url, width, height, is_intermediate] tuple, or false for an unknown
+     * attachment — again a real branch, so unseeded ids do not invent one.
+     *
+     * @return array{0: string, 1: int, 2: int, 3: bool}|false
+     */
+    function wp_get_attachment_image_src(int $attachmentId, mixed $size = 'thumbnail', bool $icon = false): array|false
+    {
+        return WpState::$attachments[$attachmentId] ?? false;
+    }
+}
+
+if (!function_exists('wp_get_attachment_url')) {
+    function wp_get_attachment_url(int $attachmentId): string|false
+    {
+        return WpState::$attachments[$attachmentId][0] ?? false;
+    }
+}
+
 // ── Taxonomies ───────────────────────────────────────────────────────
 
 if (!function_exists('wp_get_post_terms')) {
@@ -814,6 +948,13 @@ if (!function_exists('is_multisite')) {
     }
 }
 
+if (!function_exists('is_singular')) {
+    function is_singular(mixed $postTypes = ''): bool
+    {
+        return WpState::$isSingular;
+    }
+}
+
 if (!function_exists('wp_doing_ajax')) {
     function wp_doing_ajax(): bool
     {
@@ -872,6 +1013,37 @@ if (!function_exists('wp_redirect')) {
         WpState::$redirects[] = $location;
 
         return true;
+    }
+}
+
+if (!function_exists('wp_validate_redirect')) {
+    /**
+     * WordPress rejects off-site locations, falling back to the second
+     * argument. Same rule here against home_url()'s host, because the point of
+     * calling it is the open-redirect guard, and a stub that waved everything
+     * through would make that guard untestable.
+     */
+    function wp_validate_redirect(string $location, string $fallback = ''): string
+    {
+        $host = parse_url($location, PHP_URL_HOST);
+
+        if ($host === null || $host === false) {
+            // Relative — same-site by definition.
+            return $location;
+        }
+
+        return $host === parse_url(home_url(), PHP_URL_HOST) ? $location : $fallback;
+    }
+}
+
+if (!function_exists('wp_salt')) {
+    /**
+     * Fixed per scheme, so anything derived from it — a signature, a token —
+     * is reproducible across a run without being a real secret.
+     */
+    function wp_salt(string $scheme = 'auth'): string
+    {
+        return 'wp-mocks-salt-' . $scheme;
     }
 }
 
@@ -1162,6 +1334,13 @@ if (!function_exists('shortcode_exists')) {
     }
 }
 
+if (!function_exists('remove_shortcode')) {
+    function remove_shortcode(string $tag = ''): void
+    {
+        unset(WpState::$shortcodes[$tag]);
+    }
+}
+
 if (!function_exists('shortcode_atts')) {
     /**
      * @param array<string, mixed> $pairs
@@ -1283,6 +1462,164 @@ if (!function_exists('wp_remote_retrieve_cookie_value')) {
         $cookie = wp_remote_retrieve_cookie($response, $name);
 
         return $cookie instanceof \WP_Http_Cookie ? $cookie->value : '';
+    }
+}
+
+// ── Mail ─────────────────────────────────────────────────────────────
+
+if (!function_exists('wp_mail')) {
+    /**
+     * Records the message rather than sending it. Set WpState::$mailResult to
+     * false to exercise a caller's send-failure branch.
+     *
+     * @param string|array<int, string> $to
+     * @param string|array<int, string> $headers
+     * @param array<int, string>        $attachments
+     */
+    function wp_mail(
+        string|array $to,
+        string $subject,
+        string $message,
+        string|array $headers = '',
+        array $attachments = []
+    ): bool {
+        WpState::$mail[] = compact('to', 'subject', 'message', 'headers', 'attachments');
+
+        return WpState::$mailResult;
+    }
+}
+
+if (!function_exists('is_email')) {
+    /**
+     * WordPress returns the address on success and false on failure, not a
+     * bool — code does `if (!is_email($x))`, which works either way, but a
+     * caller assigning the result would see the difference.
+     */
+    function is_email(string $email): string|false
+    {
+        return filter_var($email, FILTER_VALIDATE_EMAIL) === false ? false : $email;
+    }
+}
+
+// ── Cron ─────────────────────────────────────────────────────────────
+
+if (!function_exists('wp_next_scheduled')) {
+    /**
+     * @param array<int, mixed> $args
+     */
+    function wp_next_scheduled(string $hook, array $args = []): int|false
+    {
+        return WpState::$cron[$hook] ?? false;
+    }
+}
+
+if (!function_exists('wp_schedule_event')) {
+    /**
+     * @param array<int, mixed> $args
+     */
+    function wp_schedule_event(int $timestamp, string $recurrence, string $hook, array $args = []): bool
+    {
+        WpState::$cron[$hook] = $timestamp;
+
+        return true;
+    }
+}
+
+if (!function_exists('wp_schedule_single_event')) {
+    /**
+     * @param array<int, mixed> $args
+     */
+    function wp_schedule_single_event(int $timestamp, string $hook, array $args = []): bool
+    {
+        WpState::$cron[$hook] = $timestamp;
+
+        return true;
+    }
+}
+
+if (!function_exists('wp_unschedule_event')) {
+    /**
+     * @param array<int, mixed> $args
+     */
+    function wp_unschedule_event(int $timestamp, string $hook, array $args = []): bool
+    {
+        unset(WpState::$cron[$hook]);
+
+        return true;
+    }
+}
+
+if (!function_exists('wp_clear_scheduled_hook')) {
+    /**
+     * Returns the number of events cleared, as WordPress does.
+     *
+     * @param array<int, mixed> $args
+     */
+    function wp_clear_scheduled_hook(string $hook, array $args = []): int
+    {
+        $cleared = isset(WpState::$cron[$hook]) ? 1 : 0;
+        unset(WpState::$cron[$hook]);
+
+        return $cleared;
+    }
+}
+
+// ── Filesystem ───────────────────────────────────────────────────────
+
+if (!function_exists('get_temp_dir')) {
+    function get_temp_dir(): string
+    {
+        return rtrim(sys_get_temp_dir(), '/\\') . '/';
+    }
+}
+
+if (!function_exists('sanitize_file_name')) {
+    function sanitize_file_name(string $filename): string
+    {
+        $filename = preg_replace('/[^a-zA-Z0-9._-]/', '-', $filename) ?? '';
+
+        return trim(preg_replace('/-+/', '-', $filename) ?? '', '-');
+    }
+}
+
+if (!function_exists('wp_unique_filename')) {
+    /**
+     * Real WordPress increments a suffix until the name is free on disk; so
+     * does this, against the directory it is handed.
+     */
+    function wp_unique_filename(string $dir, string $filename, mixed $callback = null): string
+    {
+        $filename = sanitize_file_name($filename);
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        $base = $extension === '' ? $filename : substr($filename, 0, -(strlen($extension) + 1));
+        $suffix = $extension === '' ? '' : '.' . $extension;
+
+        $candidate = $base . $suffix;
+        $n = 1;
+        while (file_exists(rtrim($dir, '/\\') . '/' . $candidate)) {
+            $candidate = $base . '-' . $n++ . $suffix;
+        }
+
+        return $candidate;
+    }
+}
+
+if (!function_exists('wp_upload_dir')) {
+    /**
+     * @return array{path: string, url: string, subdir: string, basedir: string, baseurl: string, error: false}
+     */
+    function wp_upload_dir(?string $time = null, bool $createDir = true, bool $refreshCache = false): array
+    {
+        $base = rtrim(sys_get_temp_dir(), '/\\') . '/wp-mocks-uploads';
+
+        return [
+            'path' => $base,
+            'url' => 'https://example.test/wp-content/uploads',
+            'subdir' => '',
+            'basedir' => $base,
+            'baseurl' => 'https://example.test/wp-content/uploads',
+            'error' => false,
+        ];
     }
 }
 
