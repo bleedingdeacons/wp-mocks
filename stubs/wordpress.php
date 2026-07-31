@@ -28,6 +28,37 @@ use BleedingDeacons\WpMocks\Exceptions\JsonResponseException;
 use BleedingDeacons\WpMocks\Exceptions\WpDieException;
 use BleedingDeacons\WpMocks\WpState;
 
+// ── Constants ────────────────────────────────────────────────────────
+//
+// WordPress core constants that plugin code references directly, so an
+// unqualified use inside a namespaced class does not die on "Undefined
+// constant". The $wpdb output formats matter most: a repository calling
+// get_results($sql, ARRAY_A) fatals without them, and every custom-table
+// plugin in this suite does exactly that.
+//
+// Not defined here: ABSPATH, WP_DEBUG, WP_PLUGIN_DIR and the plugin's own
+// constants. Those describe a particular installation, so a plugin's own
+// bootstrap decides them — several in this suite point ABSPATH at a real temp
+// directory precisely so filesystem paths can be exercised.
+
+foreach ([
+    'OBJECT' => 'OBJECT',
+    'OBJECT_K' => 'OBJECT_K',
+    'ARRAY_A' => 'ARRAY_A',
+    'ARRAY_N' => 'ARRAY_N',
+    'MINUTE_IN_SECONDS' => 60,
+    'HOUR_IN_SECONDS' => 3600,
+    'DAY_IN_SECONDS' => 86400,
+    'WEEK_IN_SECONDS' => 604800,
+    'MONTH_IN_SECONDS' => 2592000,
+    'YEAR_IN_SECONDS' => 31536000,
+] as $wpMocksConstant => $wpMocksValue) {
+    if (!defined($wpMocksConstant)) {
+        define($wpMocksConstant, $wpMocksValue);
+    }
+}
+unset($wpMocksConstant, $wpMocksValue);
+
 // ── Classes ──────────────────────────────────────────────────────────
 
 if (!class_exists('WP_Post')) {

@@ -269,4 +269,36 @@ final class WordPressStubsTest extends TestCase
 
         self::assertSame(['a' => 1, 'b' => 9], $atts, 'unknown attributes are dropped');
     }
+
+    /**
+     * The $wpdb output formats are the ones that bite: a repository calling
+     * get_results($sql, ARRAY_A) from inside a namespace fatals on "Undefined
+     * constant" without them, and every custom-table plugin in this suite does
+     * exactly that.
+     */
+    public function testWordPressCoreConstantsAreDefined(): void
+    {
+        self::assertSame('ARRAY_A', ARRAY_A);
+        self::assertSame('ARRAY_N', ARRAY_N);
+        self::assertSame('OBJECT', OBJECT);
+        self::assertSame('OBJECT_K', OBJECT_K);
+
+        self::assertSame(60, MINUTE_IN_SECONDS);
+        self::assertSame(3600, HOUR_IN_SECONDS);
+        self::assertSame(86400, DAY_IN_SECONDS);
+        self::assertSame(604800, WEEK_IN_SECONDS);
+        self::assertSame(2592000, MONTH_IN_SECONDS);
+        self::assertSame(31536000, YEAR_IN_SECONDS);
+    }
+
+    /**
+     * Constants describing a particular installation are deliberately left to
+     * the consuming plugin's bootstrap — several in this suite point ABSPATH
+     * at a real temp directory so filesystem paths can be exercised.
+     */
+    public function testInstallationConstantsAreLeftToTheConsumer(): void
+    {
+        self::assertFalse(defined('WP_DEBUG'), 'WP_DEBUG is the plugin bootstrap to decide');
+        self::assertFalse(defined('WP_PLUGIN_DIR'), 'WP_PLUGIN_DIR is the plugin bootstrap to decide');
+    }
 }
