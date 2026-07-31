@@ -111,7 +111,7 @@ can paper over it.
 
 | Stub group | Covers |
 |---|---|
-| `wordpress` | options, transients, object cache, posts, meta, taxonomies, users and caps, nonces, URLs, admin menus, assets, shortcodes, the HTTP API, formatting, escaping, i18n |
+| `wordpress` | options, transients, object cache, posts, meta, taxonomies, users and caps, nonces, URLs, admin menus, assets, shortcodes, the HTTP API, formatting, escaping, i18n, and the core constants (`ARRAY_A` and the other `$wpdb` output formats, `*_IN_SECONDS`) |
 | `acf` | `get_field`, `update_field`, `get_fields`, `get_field_object`, `acf_get_field`, `acf_add_local_field_group`, `acf_add_validation_error` |
 | `sentinel` | `wp_log()` and `Sentinel_Log_Channel`, memoised per channel so `HasLogger`'s cached channel is the one a test asserts on |
 
@@ -123,6 +123,11 @@ can paper over it.
 | `Doubles\FakeWpdb` | Recording `$wpdb`: queues rows, records every statement, insert/update/delete with their formats |
 | `Doubles\FakeWpHttp` | Scriptable WP HTTP backend: queue responses, assert on what was sent |
 | `Exceptions\WpDieException`, `Exceptions\JsonResponseException` | Thrown by the terminating functions instead of exiting, so guard clauses stay assertable |
+
+Constants that describe a *particular installation* — `ABSPATH`, `WP_DEBUG`,
+`WP_PLUGIN_DIR`, and a plugin's own — are deliberately not defined here. Several
+plugins in this suite point `ABSPATH` at a real temp directory so filesystem
+paths can be exercised, so that decision belongs to their bootstrap.
 
 ### Brain Monkey owns the hooks
 
