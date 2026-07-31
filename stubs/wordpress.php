@@ -980,7 +980,7 @@ if (!function_exists('nocache_headers')) {
 if (!function_exists('wp_die')) {
     function wp_die(mixed $message = '', mixed $title = '', mixed $args = []): void
     {
-        throw new WpDieException(is_string($message) ? $message : 'wp_die');
+        throw WpDieException::fromArguments($message, $title, $args);
     }
 }
 

@@ -188,6 +188,44 @@ final class WordPressStubsTest extends TestCase
         wp_die('Nope');
     }
 
+    /**
+     * The interesting thing about a guard clause is usually the status it
+     * refuses with, and WordPress takes that in either of two positions.
+     */
+    public function testWpDieCarriesAStatusGivenAsTheSecondArgument(): void
+    {
+        try {
+            wp_die('Forbidden', 403);
+            self::fail('wp_die should have thrown');
+        } catch (WpDieException $e) {
+            self::assertSame('Forbidden', $e->getMessage());
+            self::assertSame(403, $e->status);
+        }
+    }
+
+    public function testWpDieCarriesAStatusGivenUnderResponse(): void
+    {
+        try {
+            wp_die('Forbidden', 'Not allowed', ['response' => 401, 'back_link' => true]);
+            self::fail('wp_die should have thrown');
+        } catch (WpDieException $e) {
+            self::assertSame(401, $e->status);
+            self::assertSame('Not allowed', $e->title);
+            self::assertTrue($e->args['back_link']);
+        }
+    }
+
+    /** Null, not 0, so "no status given" stays distinguishable from a real 0. */
+    public function testWpDieWithNoStatusReportsNullRatherThanZero(): void
+    {
+        try {
+            wp_die('Nope');
+            self::fail('wp_die should have thrown');
+        } catch (WpDieException $e) {
+            self::assertNull($e->status);
+        }
+    }
+
     public function testJsonResponsesCarryTheirPayload(): void
     {
         try {
