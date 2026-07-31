@@ -9,6 +9,7 @@ use BleedingDeacons\WpMocks\Doubles\FakeWpHttp;
 use BleedingDeacons\WpMocks\TestCase;
 use PHPUnit\Framework\Attributes\CoversClass;
 use WP_Error;
+use WP_Http_Cookie;
 
 #[CoversClass(FakeWpdb::class)]
 #[CoversClass(FakeWpHttp::class)]
@@ -130,5 +131,44 @@ final class DoublesTest extends TestCase
 
         self::assertTrue(is_wp_error($response));
         self::assertSame('timed out', $response->get_error_message());
+    }
+
+    /**
+     * A transport holding a session open reads the jar off one response and
+     * replays it on the next, so the cookies have to survive the round trip.
+     */
+    public function testCookiesComeBackOffTheResponse(): void
+    {
+        FakeWpHttp::pushResponse(200, '', [], [
+            new WP_Http_Cookie(['name' => 'PHPSESSID', 'value' => 'abc123']),
+        ]);
+
+        $response = wp_remote_get('https://api.test/login');
+
+        self::assertCount(1, wp_remote_retrieve_cookies($response));
+        self::assertSame('abc123', wp_remote_retrieve_cookie_value($response, 'PHPSESSID'));
+    }
+
+    /**
+     * WordPress answers an absent cookie with an empty string rather than
+     * null, and a caller that type-hints the difference will notice.
+     */
+    public function testAnAbsentCookieIsAnEmptyString(): void
+    {
+        FakeWpHttp::pushResponse(200);
+
+        $response = wp_remote_get('https://api.test/anonymous');
+
+        self::assertSame([], wp_remote_retrieve_cookies($response));
+        self::assertSame('', wp_remote_retrieve_cookie($response, 'PHPSESSID'));
+        self::assertSame('', wp_remote_retrieve_cookie_value($response, 'PHPSESSID'));
+    }
+
+    public function testCookieRetrievalOnAWpErrorIsEmptyRatherThanFatal(): void
+    {
+        $response = new WP_Error('http_request_failed', 'timed out');
+
+        self::assertSame([], wp_remote_retrieve_cookies($response));
+        self::assertSame('', wp_remote_retrieve_cookie_value($response, 'PHPSESSID'));
     }
 }
