@@ -165,6 +165,51 @@ zero-or-more — so it is a direct swap for `userFunction()`, and `->once()`,
 Better still, where a test only stubbed `get_option`/`get_post`/`get_field` to
 hold a value, delete the stub and seed `WpState` instead.
 
+### One stub per function per test
+
+This is the one migration trap that fails *silently*. `WP_Mock::userFunction()`
+registered a separate stub per argument set, so stacking calls dispatched on
+the arguments. Brain Monkey keeps one stub per function per test, and the first
+one registered answers every call — whatever its `->with()` says:
+
+```php
+Functions\expect('get_field')->with('title', 42)->andReturn('A title');
+Functions\expect('get_field')->with('date', 42)->andReturn('2026-07-01');
+
+get_field('title', 42);  // 'A title'
+get_field('date', 42);   // 'A title'  ← not the date
+```
+
+Nothing errors. The second value simply never appears, and the failure surfaces
+somewhere downstream — a `DateTime::createFromFormat(): must be of type string,
+array given`, three assertions later.
+
+Use one expectation that dispatches on the argument:
+
+```php
+Functions\expect('get_field')->andReturnUsing(
+    static fn (string $field, int $postId): mixed => match ($field) {
+        'title' => 'A title',
+        'date'  => '2026-07-01',
+        default => null,
+    }
+);
+```
+
+The same applies to a base class or helper that stubs a function every test
+needs: a per-test override cannot be layered on top of it. Give the helper an
+`$overrides` parameter and merge, rather than adding a second expectation.
+
+### Signatures survive the override
+
+Patchwork keeps a function's declared signature when Brain Monkey redefines it,
+so a stub cannot return something its own declaration forbids. The stubs here
+are typed as WordPress types them — `wp_insert_post()` returns `int|WP_Error`,
+`get_permalink()` returns `string|false`, `wp_is_post_autosave()` returns
+`int|false` — but the flip side is that a test simulating a failure has to use
+the real shape. `->andReturn(new stdClass())` in place of a `WP_Error`, or a
+bare `true` for "yes, this is an autosave", is a `TypeError` now.
+
 ## Development
 
 ```bash
