@@ -180,6 +180,19 @@ final class WordPressStubsTest extends TestCase
         self::assertTrue(current_user_can('read'), 'only the named cap should be denied');
     }
 
+    /**
+     * The escaping helpers pass their input through — the stubs deliberately
+     * do not model escaping, so a test asserting on it would be testing them
+     * rather than the code. sanitize_url() is WordPress's alias of
+     * esc_url_raw(), and code reaches for either.
+     */
+    public function testTheEscapingHelpersPassTheirInputThrough(): void
+    {
+        self::assertSame('https://a.test/x', esc_url_raw('https://a.test/x'));
+        self::assertSame('https://a.test/x', sanitize_url('https://a.test/x'));
+        self::assertSame('<b>', esc_html('<b>'));
+    }
+
     public function testWpDieThrowsRatherThanExiting(): void
     {
         $this->expectException(WpDieException::class);

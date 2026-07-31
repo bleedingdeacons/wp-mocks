@@ -251,6 +251,9 @@ foreach (
     [
         'esc_html', 'esc_attr', 'esc_url', 'esc_url_raw', 'esc_textarea',
         'esc_js', 'wp_kses_post', 'sanitize_email', 'wp_slash',
+        // sanitize_url() is WordPress's own alias of esc_url_raw(); code
+        // reaches for either, so both are here.
+        'sanitize_url',
     ] as $fn
 ) {
     if (!function_exists($fn)) {
