@@ -1,0 +1,41 @@
+# Committed PHPStan config, matching the plugin suite's conventions.
+#
+# phpstan.neon (no .dist) is gitignored and, if present, overrides this file
+# entirely — keep personal tweaks there. This .dist is what CI uses.
+#
+# Note this package deliberately does NOT include phpstan-wordpress. That
+# extension supplies WordPress's own function signatures, which would conflict
+# with the stand-ins in stubs/ — the whole point of this package is that those
+# functions do not exist yet, and it defines them.
+
+parameters:
+    level: 6
+    # PHPStan 2 proves a condition dead when PHPDoc says it cannot happen.
+    # In WordPress plugin code PHPDoc is aspirational: values arrive from
+    # get_field(), HTTP responses, scraped HTML and $_POST, none of which the
+    # annotation can guarantee. Matches the rest of the suite.
+    treatPhpDocTypesAsCertain: false
+    paths:
+        - src
+    excludePaths:
+        - tests
+    scanFiles:
+        # Not analysed — they are procedural files defining global functions
+        # and classes, guarded by function_exists()/class_exists(), which is
+        # exactly the shape PHPStan cannot reason about. Scanned so that
+        # WP_Post, WP_Error, WP_User and friends resolve in type positions
+        # inside src/.
+        - stubs/wordpress.php
+        - stubs/acf.php
+        - stubs/sentinel.php
+    # An ignoreErrors pattern that stops matching is reported as an error by
+    # default, so a stale pattern would fail the gate. Matches the suite.
+    reportUnmatchedIgnoredErrors: false
+    ignoreErrors:
+        # HookAssertions is a trait mixed into a PHPUnit TestCase. PHPStan
+        # analyses a trait in isolation, so the inherited assertion methods
+        # are unresolvable here. The @method tags on the trait document them
+        # for readers; this silences the analyser.
+        -
+            message: '#Call to an undefined method BleedingDeacons\\WpMocks\\HookAssertions::assert#'
+            path: src/HookAssertions.php

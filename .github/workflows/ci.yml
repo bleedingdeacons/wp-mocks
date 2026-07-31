@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    # The matrix IS the point of this job. This package exists because
+    # 10up/wp_mock declares "phpunit/phpunit": "^9.6" in its require block and
+    # thereby pinned the whole plugin suite to PHPUnit 9 without anyone
+    # noticing. Running against every supported major is what stops this
+    # package quietly acquiring a ceiling of its own.
+    #
+    # Combinations are constrained by PHPUnit's own PHP floors: 11 needs PHP
+    # 8.2, 12 needs PHP 8.3. PHP 8.1 is the suite's floor, so it is the one
+    # that must keep working.
+    name: PHP ${{ matrix.php }} / PHPUnit ${{ matrix.phpunit }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { php: '8.1', phpunit: '10.5.*' }
+          - { php: '8.2', phpunit: '10.5.*' }
+          - { php: '8.2', phpunit: '11.*' }
+          - { php: '8.3', phpunit: '11.*' }
+          - { php: '8.3', phpunit: '12.*' }
+          - { php: '8.4', phpunit: '12.*' }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mbstring, json
+          tools: composer:v2
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          # Keyed on composer.json: composer.lock is untracked here, matching
+          # the rest of the suite.
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-php${{ matrix.php }}-composer-${{ hashFiles('composer.json') }}
+          restore-keys: |
+            ${{ runner.os }}-php${{ matrix.php }}-composer-
+
+      - name: Validate composer.json
+        run: composer validate --no-check-lock
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Pin PHPUnit to ${{ matrix.phpunit }}
+        # --with, rather than `composer require`, so composer.json is not
+        # rewritten — PackageConstraintsTest asserts on its contents.
+        run: composer update -W --no-progress --with "phpunit/phpunit:${{ matrix.phpunit }}"
+
+      - name: PHPUnit
+        # --display-phpunit-deprecations so a doc-comment annotation that PHPUnit
+        # 12 will drop shows up here rather than at the next major.
+        run: vendor/bin/phpunit --display-phpunit-deprecations
+
+  static-analysis:
+    name: PHPStan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.1
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: mbstring, json
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Lint PHP syntax
+        run: |
+          status=0
+          while IFS= read -r -d '' file; do
+            if ! out=$(php -l "$file" 2>&1); then
+              echo "$out"
+              status=1
+            fi
+          done < <(find src stubs tests -name '*.php' -print0)
+          exit $status
+
+      - name: PHPStan
+        run: composer stan

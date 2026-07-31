@@ -1,0 +1,59 @@
+{
+    "name": "bleedingdeacons/wp-mocks",
+    "description": "Shared WordPress test doubles for The Bleeding Deacons plugin suite: a state-backed stub layer over Brain Monkey, plus fakes for $wpdb and the WP HTTP API.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["wordpress", "testing", "test-doubles", "brain-monkey", "phpunit"],
+    "authors": [
+        {
+            "name": "The Bleeding Deacons"
+        }
+    ],
+    "minimum-stability": "stable",
+    "extra": {
+        "comment-require": [
+            "PHPUnit is DELIBERATELY absent from require, and must stay absent.",
+            "10up/wp_mock declares phpunit/phpunit ^9.6 in its own require, which is",
+            "what silently pinned this whole plugin suite to PHPUnit 9.6.35 even where",
+            "composer.json asked for ^9.6|^10.0. Brain Monkey avoids that trap by",
+            "declaring no phpunit constraint at all, and so does this package: the",
+            "consuming plugin supplies its own PHPUnit. src/TestCase.php extends",
+            "PHPUnit\\Framework\\TestCase, but it is only ever autoloaded from inside a",
+            "test run, where PHPUnit is by definition present.",
+            "See tests/PackageConstraintsTest.php, which fails if phpunit reappears here."
+        ]
+    },
+    "require": {
+        "php": ">=8.1",
+        "brain/monkey": "^2.7",
+        "mockery/mockery": "^1.6"
+    },
+    "require-dev": {
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^10.5 || ^11.0 || ^12.0",
+        "squizlabs/php_codesniffer": "^3.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "BleedingDeacons\\WpMocks\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "BleedingDeacons\\WpMocks\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "stan": "phpstan analyse --memory-limit=1G",
+        "cs": "phpcs",
+        "check": [
+            "@stan",
+            "@test"
+        ]
+    },
+    "config": {
+        "optimize-autoloader": true,
+        "sort-packages": true
+    }
+}
