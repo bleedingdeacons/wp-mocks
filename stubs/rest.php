@@ -56,6 +56,33 @@ if (!class_exists('WP_REST_Request')) {
             return $this->params;
         }
 
+        /**
+         * WordPress partitions parameters by where they arrived from — query
+         * string, body, URL path — and merges them for get_param(). This stub
+         * keeps one undifferentiated set, so these three answer with all of
+         * them. That is what every hand-rolled copy in this suite did, and no
+         * consumer here distinguishes the sources; a test that needs to tell
+         * them apart wants a real request, not a stand-in.
+         *
+         * @return array<string, mixed>
+         */
+        public function get_query_params(): array
+        {
+            return $this->params;
+        }
+
+        /** @return array<string, mixed> */
+        public function get_body_params(): array
+        {
+            return $this->params;
+        }
+
+        /** @return array<string, mixed> */
+        public function get_url_params(): array
+        {
+            return $this->params;
+        }
+
         public function get_route(): string
         {
             return $this->route;

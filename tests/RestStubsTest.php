@@ -30,6 +30,20 @@ final class RestStubsTest extends TestCase
     }
 
     /**
+     * The stub keeps one undifferentiated parameter set, so the three
+     * source-specific accessors all answer with it. Consumers here read
+     * whichever one their controller happens to call.
+     */
+    public function testTheSourceSpecificAccessorsAllSeeTheSameParams(): void
+    {
+        $request = new WP_REST_Request(['page' => 2]);
+
+        self::assertSame(['page' => 2], $request->get_query_params());
+        self::assertSame(['page' => 2], $request->get_body_params());
+        self::assertSame(['page' => 2], $request->get_url_params());
+    }
+
+    /**
      * WordPress lower-cases header names on the way in, so a controller
      * reading 'Authorization' must find one set as 'authorization'.
      */
