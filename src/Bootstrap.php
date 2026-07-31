@@ -21,7 +21,7 @@ use RuntimeException;
  */
 final class Bootstrap
 {
-    public const GROUPS = ['wordpress', 'acf', 'sentinel'];
+    public const GROUPS = ['wordpress', 'rest', 'acf', 'sentinel'];
 
     /** @var array<int, string> */
     private static array $loaded = [];

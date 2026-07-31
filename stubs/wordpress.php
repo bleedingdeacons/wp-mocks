@@ -1250,6 +1250,42 @@ if (!function_exists('wp_remote_retrieve_headers')) {
     }
 }
 
+if (!function_exists('wp_remote_retrieve_cookies')) {
+    /**
+     * A transport that keeps a session alive replays these on the next
+     * request, so the cookie jar matters as much as the body.
+     *
+     * @return array<int, \WP_Http_Cookie>
+     */
+    function wp_remote_retrieve_cookies(mixed $response): array
+    {
+        return is_array($response) ? ($response['cookies'] ?? []) : [];
+    }
+}
+
+if (!function_exists('wp_remote_retrieve_cookie')) {
+    function wp_remote_retrieve_cookie(mixed $response, string $name): \WP_Http_Cookie|string
+    {
+        foreach (wp_remote_retrieve_cookies($response) as $cookie) {
+            if ($cookie->name === $name) {
+                return $cookie;
+            }
+        }
+
+        // WordPress returns an empty string, not null, when the cookie is absent.
+        return '';
+    }
+}
+
+if (!function_exists('wp_remote_retrieve_cookie_value')) {
+    function wp_remote_retrieve_cookie_value(mixed $response, string $name): string
+    {
+        $cookie = wp_remote_retrieve_cookie($response, $name);
+
+        return $cookie instanceof \WP_Http_Cookie ? $cookie->value : '';
+    }
+}
+
 // ── Formatting and time ──────────────────────────────────────────────
 
 if (!function_exists('number_format_i18n')) {
