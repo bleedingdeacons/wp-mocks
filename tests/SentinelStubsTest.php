@@ -6,6 +6,7 @@ namespace BleedingDeacons\WpMocks\Tests;
 
 use BleedingDeacons\WpMocks\TestCase;
 use BleedingDeacons\WpMocks\WpState;
+use Brain\Monkey\Functions;
 
 final class SentinelStubsTest extends TestCase
 {
@@ -33,8 +34,23 @@ final class SentinelStubsTest extends TestCase
 
     public function testCallsAreMirroredIntoTheSharedState(): void
     {
-        wp_log('mirror-test')->warning('careful', ['id' => 3]);
+        wp_log('mirror-test')?->warning('careful', ['id' => 3]);
 
         self::assertContains(['mirror-test', 'warning', 'careful', ['id' => 3]], WpState::$logs);
+    }
+
+    /**
+     * Code guarded by function_exists('wp_log') cannot be exercised for the
+     * "no logger" branch by removing the function — it is already defined. The
+     * way to do it is to have wp_log() answer null, which only works if the
+     * stub's return type is nullable: Patchwork keeps the original signature
+     * when Brain Monkey redefines a function, so a non-nullable type would
+     * turn this into a TypeError.
+     */
+    public function testWpLogCanBeMadeToReturnNullSoTheDegradedPathIsTestable(): void
+    {
+        Functions\when('wp_log')->justReturn(null);
+
+        self::assertNull(wp_log('anything'));
     }
 }

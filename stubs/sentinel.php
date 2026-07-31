@@ -98,8 +98,16 @@ if (!function_exists('wp_log')) {
      * Channels are memoised so two calls for the same name return the same
      * object — HasLogger caches the channel it is given, and a test asserting
      * on ->calls needs to be looking at the same instance the code used.
+     *
+     * The return type is nullable even though this stub never returns null.
+     * Patchwork keeps the original signature when Brain Monkey redefines a
+     * function, so a non-nullable type here would make
+     * `Functions\when('wp_log')->justReturn(null)` a TypeError — and that is
+     * exactly how a caller simulates the logger being unavailable. HasLogger
+     * already types its own accessor as ?Sentinel_Log_Channel, so nullable is
+     * the more faithful signature in any case.
      */
-    function wp_log(string $channel = 'default'): \Sentinel_Log_Channel
+    function wp_log(string $channel = 'default'): ?\Sentinel_Log_Channel
     {
         /** @var array<string, \Sentinel_Log_Channel> $channels */
         static $channels = [];
