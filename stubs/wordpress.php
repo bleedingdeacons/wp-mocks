@@ -320,15 +320,31 @@ if (!function_exists('_n')) {
 // ── Sanitising ───────────────────────────────────────────────────────
 
 if (!function_exists('sanitize_text_field')) {
+    /**
+     * Core's _sanitize_text_fields() returns '' outright for an object or an
+     * array, before any string handling. Casting instead emits an "Array to
+     * string conversion" warning the real function never produces — which,
+     * in a suite running with failOnWarning, fails a test for something
+     * production does not do.
+     */
     function sanitize_text_field(mixed $str = ''): string
     {
+        if (is_array($str) || is_object($str)) {
+            return '';
+        }
+
         return trim(strip_tags((string) $str));
     }
 }
 
 if (!function_exists('sanitize_textarea_field')) {
+    /** Same guard as sanitize_text_field(); core routes both through _sanitize_text_fields(). */
     function sanitize_textarea_field(mixed $str = ''): string
     {
+        if (is_array($str) || is_object($str)) {
+            return '';
+        }
+
         return trim(strip_tags((string) $str));
     }
 }
