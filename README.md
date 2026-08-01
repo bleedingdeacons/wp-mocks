@@ -123,7 +123,7 @@ can paper over it.
 | `HookAssertions` | `assertActionAdded()` and friends, over Brain Monkey's hook store. Also usable as a standalone trait |
 | `Doubles\FakeWpdb` | Recording `$wpdb`: queues rows, records every statement, insert/update/delete with their formats |
 | `Doubles\FakeWpHttp` | Scriptable WP HTTP backend: queue responses, assert on what was sent |
-| `Exceptions\WpDieException`, `Exceptions\JsonResponseException` | Thrown by the terminating functions instead of exiting, so guard clauses stay assertable. Both carry what they were called with — the JSON payload, and `wp_die()`'s title, args and status (from either position WordPress accepts the response code in) |
+| `Exceptions\WpDieException`, `Exceptions\JsonResponseException` | Thrown by the terminating functions instead of exiting, so guard clauses stay assertable. Both extend `Error`, not `Exception`, so a handler's own `catch (\Exception)` cannot swallow the stand-in for a function that never returns. Both carry what they were called with — the JSON payload, and `wp_die()`'s title, args and status (from either position WordPress accepts the response code in) |
 
 Constants that describe a *particular installation* — `ABSPATH`, `WP_DEBUG`,
 `WP_PLUGIN_DIR`, and a plugin's own — are deliberately not defined here. Several

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace BleedingDeacons\WpMocks\Exceptions;
 
-use RuntimeException;
+use Error;
 
 /**
  * Thrown by the stubbed wp_die(), which terminates the request in production.
@@ -20,8 +20,19 @@ use RuntimeException;
  * {@see $status}: as the second argument (`wp_die($message, 403)`) or under
  * 'response' in the third (`wp_die($message, $title, ['response' => 403])`).
  * Where neither is given it is null, which stays distinguishable from a real 0.
+ *
+ * Extends Error rather than Exception, deliberately. In production this
+ * function does not return — it ends the request — so nothing downstream of
+ * it runs. A stub throwing an Exception breaks that: a handler with its own
+ * `catch (\Exception $e)` around the call swallows the stand-in and carries
+ * on into its error path, and the test then asserts against a failure the
+ * real code would never have reached. Error sits outside that catch, so the
+ * unwind reaches the test as it reaches PHP's shutdown in production.
+ *
+ * `catch (\Throwable)` will still swallow it. Nothing can be done about that
+ * from here, and code that broad would swallow a real fatal too.
  */
-final class WpDieException extends RuntimeException
+final class WpDieException extends Error
 {
     /**
      * @param array<string, mixed> $args

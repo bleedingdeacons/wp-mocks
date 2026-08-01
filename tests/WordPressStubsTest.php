@@ -196,7 +196,7 @@ final class WordPressStubsTest extends TestCase
     /**
      * The one that bites: WordPress hands back integers here, so a stub
      * returning objects regardless would have the caller iterating posts
-     * where it expects ids — and failing somewhere downstream.
+     * where it expects ids â€” and failing somewhere downstream.
      */
     public function testGetPostsCanAnswerWithIdsRatherThanObjects(): void
     {
@@ -232,6 +232,49 @@ final class WordPressStubsTest extends TestCase
             ['post_type' => 'answer', 'numberposts' => 5],
             WpState::$options['__last_get_posts_args']
         );
+    }
+
+    /**
+     * The stand-ins have to be uncatchable by the code they interrupt. In
+     * production these functions end the request; a handler wrapping the call
+     * in catch (\Exception) would otherwise swallow the stub and carry on
+     * into an error path the real code never reaches, and the test would then
+     * be asserting against a failure that cannot happen.
+     */
+    public function testTheTerminatingFunctionsEscapeACatchAllForExceptions(): void
+    {
+        $caught = null;
+
+        try {
+            try {
+                wp_send_json_success(['ok' => true]);
+            } catch (\Exception $e) {          // as a handler would write it
+                self::fail('the stub must not be catchable as an Exception');
+            }
+        } catch (JsonResponseException $e) {
+            $caught = $e;
+        }
+
+        self::assertNotNull($caught);
+        self::assertTrue($caught->success);
+    }
+
+    public function testWpDieAlsoEscapesACatchAllForExceptions(): void
+    {
+        $caught = null;
+
+        try {
+            try {
+                wp_die('Forbidden', 403);
+            } catch (\Exception $e) {
+                self::fail('the stub must not be catchable as an Exception');
+            }
+        } catch (WpDieException $e) {
+            $caught = $e;
+        }
+
+        self::assertNotNull($caught);
+        self::assertSame(403, $caught->status);
     }
 
     public function testWpDieThrowsRatherThanExiting(): void
