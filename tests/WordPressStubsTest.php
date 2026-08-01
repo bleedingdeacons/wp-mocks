@@ -277,6 +277,26 @@ final class WordPressStubsTest extends TestCase
         self::assertSame(403, $caught->status);
     }
 
+    /**
+     * A stub must not be stricter than what it stands in for. Core declares
+     * both of these untyped and guards with is_scalar(), so a caller handing
+     * one an array gets '' rather than a TypeError — and a test exercising a
+     * hostile-input path then sees the branch the real code would take.
+     */
+    public function testSanitiseHelpersTolerateNonScalarsAsCoreDoes(): void
+    {
+        self::assertSame('', sanitize_key(['an', 'array']));
+        self::assertSame('', sanitize_title(['an', 'array']));
+        self::assertSame('fallback', sanitize_title(['an', 'array'], 'fallback'));
+    }
+
+    public function testSanitiseHelpersStillSanitiseScalars(): void
+    {
+        self::assertSame('my_key-2', sanitize_key('My_Key-2!!'));
+        self::assertSame('a-title', sanitize_title('A Title!'));
+        self::assertSame('fallback', sanitize_title('!!!', 'fallback'));
+    }
+
     public function testWpDieThrowsRatherThanExiting(): void
     {
         $this->expectException(WpDieException::class);
