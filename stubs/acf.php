@@ -27,14 +27,14 @@ use BleedingDeacons\WpMocks\WpState;
 if (!function_exists('get_field')) {
     function get_field(string $selector, mixed $postId = false, bool $format = true): mixed
     {
-        return WpState::$fields[((int) $postId) . '|' . $selector] ?? null;
+        return WpState::$fields[WpState::acfPostId($postId) . '|' . $selector] ?? null;
     }
 }
 
 if (!function_exists('update_field')) {
     function update_field(string $selector, mixed $value, mixed $postId = false): bool
     {
-        WpState::$fields[((int) $postId) . '|' . $selector] = $value;
+        WpState::$fields[WpState::acfPostId($postId) . '|' . $selector] = $value;
 
         return true;
     }
@@ -43,7 +43,7 @@ if (!function_exists('update_field')) {
 if (!function_exists('delete_field')) {
     function delete_field(string $selector, mixed $postId = false): bool
     {
-        unset(WpState::$fields[((int) $postId) . '|' . $selector]);
+        unset(WpState::$fields[WpState::acfPostId($postId) . '|' . $selector]);
 
         return true;
     }
@@ -57,7 +57,7 @@ if (!function_exists('get_fields')) {
      */
     function get_fields(mixed $postId = false, bool $format = true): array|false
     {
-        $prefix = ((int) $postId) . '|';
+        $prefix = WpState::acfPostId($postId) . '|';
         $out = [];
 
         foreach (WpState::$fields as $key => $value) {
@@ -74,7 +74,7 @@ if (!function_exists('get_field_object')) {
     /** @return array<string, mixed>|false */
     function get_field_object(string $selector, mixed $postId = false, bool $format = true): array|false
     {
-        $key = ((int) $postId) . '|' . $selector;
+        $key = WpState::acfPostId($postId) . '|' . $selector;
 
         if (!array_key_exists($key, WpState::$fields)) {
             return false;

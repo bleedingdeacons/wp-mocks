@@ -93,4 +93,38 @@ final class AcfStubsTest extends TestCase
 
         self::assertCount(1, WpState::$options['__acf_field_groups']);
     }
+
+    /**
+     * ACF's $post_id is loose by design, and plenty of code passes the post
+     * object it already has rather than digging the id back out of it. A
+     * straight (int) cast made that a TypeError.
+     */
+    public function testAPostObjectOrArrayResolvesToTheSameBucketAsItsId(): void
+    {
+        update_field('title', 'Tuesday', 42);
+
+        self::assertSame('Tuesday', get_field('title', 42));
+        self::assertSame('Tuesday', get_field('title', (object) ['ID' => 42]));
+        self::assertSame('Tuesday', get_field('title', ['ID' => 42]));
+    }
+
+    public function testWritingThroughAPostObjectIsReadableById(): void
+    {
+        update_field('title', 'Wednesday', (object) ['ID' => 7]);
+
+        self::assertSame('Wednesday', get_field('title', 7));
+        self::assertSame(['title' => 'Wednesday'], get_fields(7));
+    }
+
+    /**
+     * false is ACF's options page, and its non-numeric string ids share that
+     * bucket here — nothing in this suite tells them apart.
+     */
+    public function testTheOptionsPageAndNonNumericIdsShareOneBucket(): void
+    {
+        update_field('site_name', 'Bristol', false);
+
+        self::assertSame('Bristol', get_field('site_name', false));
+        self::assertSame('Bristol', get_field('site_name', 'option'));
+    }
 }

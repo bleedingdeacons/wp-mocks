@@ -229,6 +229,34 @@ final class WpState
     }
 
     /**
+     * Resolve whatever ACF was handed into a post id.
+     *
+     * ACF's $post_id is deliberately loose: an int, a WP_Post, an array with
+     * an 'ID' key, false/null for the options page, or a string like "option"
+     * or "user_3". Casting straight to int covers the first and raises
+     * "Object of class WP_Post could not be converted to int" for the second,
+     * which is a real call shape — plenty of code passes the post it already
+     * has rather than digging the id back out of it.
+     *
+     * Non-numeric string ids (ACF's "option", "user_3", "term_5") share bucket
+     * 0 with the options page. Nothing in this suite distinguishes them, and
+     * separating them here would be inventing behaviour rather than standing
+     * in for it.
+     */
+    public static function acfPostId(mixed $postId): int
+    {
+        if (is_object($postId)) {
+            return (int) ($postId->ID ?? 0);
+        }
+
+        if (is_array($postId)) {
+            return (int) ($postId['ID'] ?? 0);
+        }
+
+        return is_numeric($postId) ? (int) $postId : 0;
+    }
+
+    /**
      * Seed a post, its type and its status in one call.
      *
      * @param array<string, mixed> $properties
