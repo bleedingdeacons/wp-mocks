@@ -334,16 +334,36 @@ if (!function_exists('sanitize_textarea_field')) {
 }
 
 if (!function_exists('sanitize_key')) {
-    function sanitize_key(string $key = ''): string
+    /**
+     * mixed, not string, because WordPress declares it that way: core's
+     * sanitize_key() takes an untyped $key and guards with is_scalar(),
+     * answering '' for anything else. Typing it string here made the stub
+     * *stricter than the thing it stands in for* — a caller handing it an
+     * array got a TypeError from the stub where production would quietly
+     * return '', which is a test failing for a reason the real code cannot
+     * produce.
+     */
+    function sanitize_key(mixed $key = ''): string
     {
-        return preg_replace('/[^a-z0-9_\-]/', '', strtolower($key)) ?? '';
+        if (!is_scalar($key)) {
+            return '';
+        }
+
+        return preg_replace('/[^a-z0-9_\-]/', '', strtolower((string) $key)) ?? '';
     }
 }
 
 if (!function_exists('sanitize_title')) {
-    function sanitize_title(string $title = ''): string
+    /** Untyped in core for the same reason as sanitize_key(). */
+    function sanitize_title(mixed $title = '', string $fallback = '', string $context = 'save'): string
     {
-        return trim(preg_replace('/[^a-z0-9]+/', '-', strtolower($title)) ?? '', '-');
+        if (!is_scalar($title)) {
+            return $fallback;
+        }
+
+        $sanitized = trim(preg_replace('/[^a-z0-9]+/', '-', strtolower((string) $title)) ?? '', '-');
+
+        return $sanitized === '' ? $fallback : $sanitized;
     }
 }
 
