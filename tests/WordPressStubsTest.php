@@ -193,6 +193,47 @@ final class WordPressStubsTest extends TestCase
         self::assertSame('<b>', esc_html('<b>'));
     }
 
+    /**
+     * The one that bites: WordPress hands back integers here, so a stub
+     * returning objects regardless would have the caller iterating posts
+     * where it expects ids — and failing somewhere downstream.
+     */
+    public function testGetPostsCanAnswerWithIdsRatherThanObjects(): void
+    {
+        WpState::$queryPosts = [
+            (object) ['ID' => 1, 'post_type' => 'answer'],
+            (object) ['ID' => 2, 'post_type' => 'answer'],
+        ];
+
+        self::assertSame([1, 2], get_posts(['fields' => 'ids']));
+        self::assertIsObject(get_posts()[0]);
+    }
+
+    public function testGetPostsFiltersByTypeStatusAndInclusion(): void
+    {
+        WpState::$queryPosts = [
+            (object) ['ID' => 1, 'post_type' => 'answer', 'post_status' => 'publish'],
+            (object) ['ID' => 2, 'post_type' => 'page', 'post_status' => 'publish'],
+            (object) ['ID' => 3, 'post_type' => 'answer', 'post_status' => 'draft'],
+        ];
+
+        self::assertSame([1, 3], get_posts(['post_type' => 'answer', 'fields' => 'ids']));
+        self::assertSame([1, 2], get_posts(['post_status' => 'publish', 'fields' => 'ids']));
+        self::assertSame([2, 3], get_posts(['post__not_in' => [1], 'fields' => 'ids']));
+        self::assertSame([3], get_posts(['post__in' => [3], 'fields' => 'ids']));
+    }
+
+    /** Whatever was asked for stays assertable, filtered or not. */
+    public function testGetPostsRecordsTheArgumentsItWasCalledWith(): void
+    {
+        get_posts(['post_type' => 'answer', 'numberposts' => 5]);
+
+        self::assertSame(
+            ['post_type' => 'answer', 'numberposts' => 5],
+            WpState::$options['__last_get_posts_args']
+        );
+    }
+
     public function testWpDieThrowsRatherThanExiting(): void
     {
         $this->expectException(WpDieException::class);

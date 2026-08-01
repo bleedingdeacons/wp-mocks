@@ -653,14 +653,67 @@ if (!function_exists('wp_is_post_autosave')) {
 
 if (!function_exists('get_posts')) {
     /**
+     * Answers from WpState::$queryPosts, honouring the handful of arguments
+     * that change the *shape* or *membership* of the result.
+     *
+     * 'fields' => 'ids' matters most: WordPress hands back integers, and a
+     * stub that returned objects regardless would have the caller iterating
+     * posts where it expects ids. That fails somewhere downstream — a string
+     * interpolation, an array key — rather than here, which is exactly the
+     * kind of silent mismatch this package exists to avoid.
+     *
+     * Ordering, pagination, meta and tax queries are not modelled: a test
+     * needing those wants a real WP_Query. Everything passed is recorded, so
+     * assertions about what was *asked for* stay available either way.
+     *
      * @param array<string, mixed> $args
-     * @return array<int, object>
+     * @return array<int, object|int>
      */
     function get_posts(array $args = []): array
     {
         WpState::$options['__last_get_posts_args'] = $args;
 
-        return WpState::$queryPosts;
+        $posts = WpState::$queryPosts;
+
+        if (!empty($args['post_type']) && $args['post_type'] !== 'any') {
+            $types = (array) $args['post_type'];
+            $posts = array_filter(
+                $posts,
+                static fn (object $p): bool => in_array($p->post_type ?? 'post', $types, true)
+            );
+        }
+
+        if (!empty($args['post_status']) && $args['post_status'] !== 'any') {
+            $statuses = (array) $args['post_status'];
+            $posts = array_filter(
+                $posts,
+                static fn (object $p): bool => in_array($p->post_status ?? 'publish', $statuses, true)
+            );
+        }
+
+        if (!empty($args['post__in'])) {
+            $include = array_map('intval', (array) $args['post__in']);
+            $posts = array_filter(
+                $posts,
+                static fn (object $p): bool => in_array((int) ($p->ID ?? 0), $include, true)
+            );
+        }
+
+        if (!empty($args['post__not_in'])) {
+            $exclude = array_map('intval', (array) $args['post__not_in']);
+            $posts = array_filter(
+                $posts,
+                static fn (object $p): bool => !in_array((int) ($p->ID ?? 0), $exclude, true)
+            );
+        }
+
+        $posts = array_values($posts);
+
+        if (($args['fields'] ?? '') === 'ids') {
+            return array_map(static fn (object $p): int => (int) ($p->ID ?? 0), $posts);
+        }
+
+        return $posts;
     }
 }
 
