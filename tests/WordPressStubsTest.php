@@ -290,6 +290,26 @@ final class WordPressStubsTest extends TestCase
         self::assertSame('fallback', sanitize_title(['an', 'array'], 'fallback'));
     }
 
+    /**
+     * Silently, too. Core returns '' before touching the value, so no "Array
+     * to string conversion" warning is emitted — and a suite running with
+     * failOnWarning would otherwise fail on a path production handles fine.
+     */
+    public function testSanitiseTextHelpersRejectNonScalarsWithoutWarning(): void
+    {
+        set_error_handler(static function (int $errno, string $message): bool {
+            throw new \RuntimeException('unexpected warning: ' . $message);
+        }, E_WARNING);
+
+        try {
+            self::assertSame('', sanitize_text_field(['an', 'array']));
+            self::assertSame('', sanitize_textarea_field(['an', 'array']));
+            self::assertSame('', sanitize_text_field(new \stdClass()));
+        } finally {
+            restore_error_handler();
+        }
+    }
+
     public function testSanitiseHelpersStillSanitiseScalars(): void
     {
         self::assertSame('my_key-2', sanitize_key('My_Key-2!!'));
