@@ -260,6 +260,18 @@ final class WordPressStubsTest extends TestCase
     }
 
     /**
+     * A space is percent-encoded, not dropped. Core does
+     * str_replace(' ', '%20', …) before stripping anything, and the
+     * difference is visible: a telephone number written with a space keeps
+     * its shape instead of silently losing a character.
+     */
+    public function testEscUrlPercentEncodesSpacesRatherThanDroppingThem(): void
+    {
+        self::assertSame('tel:07700%20900123', esc_url_raw('tel:07700 900123'));
+        self::assertSame('https://a.test/a%20b', esc_url_raw('https://a.test/a b'));
+    }
+
+    /**
      * The display form encodes the two characters core encodes; the raw form,
      * meant for storage and HTTP clients, does not.
      */
