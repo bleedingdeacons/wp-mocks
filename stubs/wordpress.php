@@ -246,18 +246,278 @@ if (!class_exists('WP_Http_Cookie')) {
 }
 
 // ── Escaping and translation ─────────────────────────────────────────
+//
+// These used to be declared in a loop as `return (string) $text` — pure
+// pass-throughs — on the reasoning that modelling escaping would mean tests
+// asserting against the stub rather than against the code.
+//
+// That reasoning does not hold, and it had a cost. Asserting that a helper
+// escapes its output *is* a fact about the code: it is the difference between
+// building an attribute with esc_attr() and building it with string
+// concatenation, and only one of those is correct. Under pass-throughs the two
+// are byte-identical, so no escaping bug anywhere in a consuming plugin could
+// fail a test. One duly shipped — Confur's HtmlHelper::createLink() wrote
+// $href, $class and $content into an <a> tag raw, a stored XSS reachable from
+// meeting contact post meta, and the first regression tests written for it
+// passed against the unfixed code.
+//
+// They are also no longer declared with eval(). Patchwork cannot instrument an
+// eval'd function, so these could not be overridden with Brain Monkey either —
+// both routes to a faithful escaper were closed at once.
+//
+// What follows is faithful to WordPress in the ways that matter for a test —
+// the same characters are neutralised, the same protocols refused — without
+// being a reimplementation. Where a stub is knowingly coarser than core it
+// says so. The one rule: a stub must never report a string as safe when
+// WordPress would have changed it.
 
-foreach (
-    [
-        'esc_html', 'esc_attr', 'esc_url', 'esc_url_raw', 'esc_textarea',
-        'esc_js', 'wp_kses_post', 'sanitize_email', 'wp_slash',
-        // sanitize_url() is WordPress's own alias of esc_url_raw(); code
-        // reaches for either, so both are here.
-        'sanitize_url',
-    ] as $fn
-) {
-    if (!function_exists($fn)) {
-        eval("function {$fn}(\$text = '') { return (string) \$text; }");
+if (!function_exists('wp_allowed_protocols')) {
+    /**
+     * @return list<string>
+     */
+    function wp_allowed_protocols(): array
+    {
+        return [
+            'http', 'https', 'ftp', 'ftps', 'mailto', 'news', 'irc', 'irc6',
+            'ircs', 'gopher', 'nntp', 'feed', 'telnet', 'mms', 'rtsp', 'sms',
+            'svn', 'tel', 'fax', 'xmpp', 'webcal', 'urn',
+        ];
+    }
+}
+
+if (!function_exists('esc_html')) {
+    /**
+     * Core passes ENT_QUOTES with double_encode off, so an existing entity is
+     * left alone rather than becoming &amp;amp;.
+     */
+    function esc_html(mixed $text = ''): string
+    {
+        return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8', false);
+    }
+}
+
+if (!function_exists('esc_attr')) {
+    function esc_attr(mixed $text = ''): string
+    {
+        return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8', false);
+    }
+}
+
+if (!function_exists('esc_textarea')) {
+    /**
+     * Unlike esc_html()/esc_attr(), core double-encodes here — textarea
+     * content is literal text, so an entity in it is meant to be seen.
+     */
+    function esc_textarea(mixed $text = ''): string
+    {
+        return htmlspecialchars((string) $text, ENT_QUOTES, 'UTF-8', true);
+    }
+}
+
+if (!function_exists('esc_js')) {
+    /**
+     * Coarser than core, deliberately: core also normalises line endings and
+     * fixes up already-escaped entities. What matters to a test is that a
+     * quote or a newline cannot close the string it sits in.
+     */
+    function esc_js(mixed $text = ''): string
+    {
+        $safe = htmlspecialchars((string) $text, ENT_COMPAT, 'UTF-8', false);
+        $safe = str_replace("\r", '', $safe);
+        $safe = str_replace("\n", '\\n', $safe);
+
+        return str_replace("'", "\\'", $safe);
+    }
+}
+
+if (!function_exists('wp_mocks_filter_url')) {
+    /**
+     * Shared by esc_url() and esc_url_raw(): strip control characters, then
+     * refuse anything carrying a scheme that is not allowed.
+     *
+     * Not a WordPress function — the wp_mocks_ prefix marks it as this
+     * package's own, so it cannot collide with a real one a consumer loads.
+     *
+     * A URL with no scheme at all (`/path`, `#frag`, `example.test/x`) is left
+     * alone — core permits those, and refusing them would break every relative
+     * link a consumer builds.
+     *
+     * @param list<string>|null $protocols
+     */
+    function wp_mocks_filter_url(string $url, ?array $protocols = null): string
+    {
+        $url = trim($url);
+        if ($url === '') {
+            return '';
+        }
+
+        // Control characters and whitespace inside a URL are how a refused
+        // scheme gets smuggled past a naive check (`java\nscript:`).
+        $url = (string) preg_replace('/[\x00-\x20\x7F]/', '', $url);
+        if ($url === '') {
+            return '';
+        }
+
+        if (preg_match('#^([a-z0-9+.-]+):#i', $url, $m) === 1) {
+            $allowed = $protocols ?? wp_allowed_protocols();
+            if (!in_array(strtolower($m[1]), $allowed, true)) {
+                return '';
+            }
+        }
+
+        return $url;
+    }
+}
+
+if (!function_exists('esc_url')) {
+    /**
+     * The display form: a refused protocol yields '', and the result is safe to
+     * drop into an href attribute.
+     *
+     * @param list<string>|null $protocols
+     */
+    function esc_url(mixed $url = '', ?array $protocols = null, string $_context = 'display'): string
+    {
+        $url = wp_mocks_filter_url((string) $url, $protocols);
+        if ($url === '') {
+            return '';
+        }
+
+        if ($_context !== 'display') {
+            return $url;
+        }
+
+        // Core encodes these two rather than running the whole string through
+        // htmlspecialchars, which would mangle a legitimate query string.
+        return str_replace(['&', "'"], ['&#038;', '&#039;'], $url);
+    }
+}
+
+if (!function_exists('esc_url_raw')) {
+    /**
+     * Same protocol gate, no entity encoding — this is the form meant for
+     * storage and for passing to an HTTP client, not for printing.
+     *
+     * @param list<string>|null $protocols
+     */
+    function esc_url_raw(mixed $url = '', ?array $protocols = null): string
+    {
+        return wp_mocks_filter_url((string) $url, $protocols);
+    }
+}
+
+if (!function_exists('sanitize_url')) {
+    /**
+     * WordPress's own alias of esc_url_raw(); code reaches for either.
+     *
+     * @param list<string>|null $protocols
+     */
+    function sanitize_url(mixed $url = '', ?array $protocols = null): string
+    {
+        return esc_url_raw($url, $protocols);
+    }
+}
+
+if (!function_exists('wp_kses_post')) {
+    /**
+     * Emphatically not KSES. Core parses the markup and filters it against a
+     * per-element attribute whitelist; reproducing that here would be a second
+     * implementation to keep in step with the first.
+     *
+     * This removes what a test is actually asking about — script-bearing
+     * elements together with their contents, event-handler attributes, and
+     * scheme-bearing URLs that are not allowed — and leaves other markup
+     * alone. It is therefore *more* permissive than core: markup that survives
+     * this may still be stripped in production. It is never less permissive,
+     * which is the direction that would let a bug pass.
+     */
+    function wp_kses_post(mixed $data = ''): string
+    {
+        $html = (string) $data;
+
+        // Element plus contents: a bare tag strip would leave the script body
+        // behind as text, which reads as "escaped" to a careless assertion.
+        $html = (string) preg_replace(
+            '#<(script|style|iframe|object|embed|form|base|link|meta)\b[^>]*>.*?</\1\s*>#is',
+            '',
+            $html
+        );
+        $html = (string) preg_replace(
+            '#</?(script|style|iframe|object|embed|form|base|link|meta)\b[^>]*>?#is',
+            '',
+            $html
+        );
+
+        // on* handlers, quoted or bare.
+        $html = (string) preg_replace('#\son[a-z]+\s*=\s*"[^"]*"#i', '', $html);
+        $html = (string) preg_replace("#\son[a-z]+\s*=\s*'[^']*'#i", '', $html);
+        $html = (string) preg_replace('#\son[a-z]+\s*=\s*[^\s>]+#i', '', $html);
+
+        // href/src carrying a scheme core would refuse.
+        $html = (string) preg_replace_callback(
+            '#\s(href|src)\s*=\s*("([^"]*)"|\'([^\']*)\'|([^\s>]+))#i',
+            static function (array $m): string {
+                $value = $m[3] ?? '';
+                if ($value === '') {
+                    $value = $m[4] ?? '';
+                }
+                if ($value === '') {
+                    $value = $m[5] ?? '';
+                }
+
+                return wp_mocks_filter_url(html_entity_decode($value, ENT_QUOTES, 'UTF-8')) === ''
+                    ? ''
+                    : $m[0];
+            },
+            $html
+        );
+
+        return $html;
+    }
+}
+
+if (!function_exists('wp_kses')) {
+    /**
+     * The allowed-elements argument is not honoured — see wp_kses_post().
+     *
+     * @param array<mixed>|string $allowed
+     * @param array<mixed>        $protocols
+     */
+    function wp_kses(string $text, array|string $allowed = [], array $protocols = []): string
+    {
+        return wp_kses_post($text);
+    }
+}
+
+if (!function_exists('sanitize_email')) {
+    /**
+     * Core returns '' for anything it cannot make into an address, which is
+     * the behaviour worth modelling: a caller that treats the return as
+     * truthy is relying on it.
+     */
+    function sanitize_email(mixed $email = ''): string
+    {
+        $email = trim((string) $email);
+        $filtered = filter_var($email, FILTER_VALIDATE_EMAIL);
+
+        return is_string($filtered) ? $filtered : '';
+    }
+}
+
+if (!function_exists('wp_slash')) {
+    /**
+     * Left as a pass-through on purpose.
+     *
+     * This is not an escaping function — it adds slashes for the benefit of
+     * WordPress's own storage layer, which the stubs do not model. Note the
+     * standing asymmetry with wp_unslash(), which really does stripslashes():
+     * a wp_unslash(wp_slash($x)) round trip removes slashes that were never
+     * added. Consumers do not currently depend on that pairing, so it is
+     * recorded here rather than changed alongside the escaping work.
+     */
+    function wp_slash(mixed $value = ''): mixed
+    {
+        return $value;
     }
 }
 
@@ -268,17 +528,22 @@ if (!function_exists('__')) {
     }
 }
 
+// The four esc_*__ / esc_*_e helpers translate *and* escape. Translation is
+// the identity here, but the escaping half is real for the same reason the
+// plain esc_* family's is: __() and esc_html__() are not interchangeable, and
+// a stub that treats them as such hides the one bug worth catching.
+
 if (!function_exists('esc_html__')) {
     function esc_html__(string $text = '', string $domain = ''): string
     {
-        return $text;
+        return esc_html($text);
     }
 }
 
 if (!function_exists('esc_attr__')) {
     function esc_attr__(string $text = '', string $domain = ''): string
     {
-        return $text;
+        return esc_attr($text);
     }
 }
 
@@ -299,14 +564,14 @@ if (!function_exists('_e')) {
 if (!function_exists('esc_html_e')) {
     function esc_html_e(string $text = '', string $domain = ''): void
     {
-        echo $text;
+        echo esc_html($text);
     }
 }
 
 if (!function_exists('esc_attr_e')) {
     function esc_attr_e(string $text = '', string $domain = ''): void
     {
-        echo $text;
+        echo esc_attr($text);
     }
 }
 
@@ -1770,14 +2035,6 @@ if (!function_exists('wp_json_encode')) {
     function wp_json_encode(mixed $data, int $options = 0, int $depth = 512): string|false
     {
         return json_encode($data, $options, $depth);
-    }
-}
-
-if (!function_exists('wp_kses')) {
-    /** @param array<string, mixed>|string $allowed */
-    function wp_kses(string $text, array|string $allowed = [], array $protocols = []): string
-    {
-        return $text;
     }
 }
 

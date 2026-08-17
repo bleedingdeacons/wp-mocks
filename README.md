@@ -130,6 +130,46 @@ Constants that describe a *particular installation* — `ABSPATH`, `WP_DEBUG`,
 plugins in this suite point `ABSPATH` at a real temp directory so filesystem
 paths can be exercised, so that decision belongs to their bootstrap.
 
+### The escaping stubs really escape
+
+`esc_html`, `esc_attr`, `esc_url`, `esc_url_raw`, `sanitize_url`,
+`esc_textarea`, `esc_js`, `wp_kses`, `wp_kses_post`, `sanitize_email` and the
+four `esc_*__` / `esc_*_e` helpers **neutralise their input**. They used to
+return it unchanged.
+
+The old behaviour was deliberate — the argument being that modelling escaping
+would mean asserting against the stub rather than against the code. It does not
+hold. Whether a helper escapes its output *is* a fact about the code: building
+an attribute with `esc_attr()` and building it by concatenation are different
+programs, and only one is correct. Under pass-throughs they produced identical
+bytes, so **no escaping bug in a consuming plugin could fail a test**. One duly
+shipped: a suite plugin built an `<a>` tag from raw post meta, and the first
+regression tests written for it passed against the unfixed code.
+
+They are also no longer declared with `eval()`. Patchwork cannot instrument an
+`eval`'d function, so these could not be overridden with Brain Monkey either —
+both routes to a faithful escaper were closed at once. Declaring them normally
+means `Functions\when('esc_html')->returnArg()` now works if a test genuinely
+wants the old behaviour.
+
+What they are **not** is a reimplementation of WordPress:
+
+- `wp_kses_post()` is not KSES. It removes script-bearing elements together
+  with their contents, event-handler attributes, and `href`/`src` values whose
+  scheme core would refuse; everything else is left alone. It is therefore
+  **more permissive than core** — markup that survives it may still be stripped
+  in production. It is never *less* permissive, which is the direction that
+  would let a bug through.
+- `esc_js()` skips core's line-ending normalisation and entity fix-ups.
+- `esc_url()` applies the protocol allow-list and encodes `&` and `'` for
+  display; it does not reproduce core's full character filtering.
+
+The rule these follow: **a stub must never report a string as safe when
+WordPress would have changed it.** Coarser is fine; laxer is not.
+
+`wp_slash()` stays a pass-through — it is not an escaping function. Note it is
+asymmetric with `wp_unslash()`, which really does `stripslashes()`.
+
 ### Brain Monkey owns the hooks
 
 `add_action`, `add_filter`, `do_action`, `apply_filters`, `has_action`,

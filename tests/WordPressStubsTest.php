@@ -181,16 +181,136 @@ final class WordPressStubsTest extends TestCase
     }
 
     /**
-     * The escaping helpers pass their input through — the stubs deliberately
-     * do not model escaping, so a test asserting on it would be testing them
-     * rather than the code. sanitize_url() is WordPress's alias of
-     * esc_url_raw(), and code reaches for either.
+     * An ordinary value is handed back unchanged. sanitize_url() is
+     * WordPress's alias of esc_url_raw(), and code reaches for either.
      */
-    public function testTheEscapingHelpersPassTheirInputThrough(): void
+    public function testTheEscapingHelpersLeaveOrdinaryValuesAlone(): void
     {
         self::assertSame('https://a.test/x', esc_url_raw('https://a.test/x'));
         self::assertSame('https://a.test/x', sanitize_url('https://a.test/x'));
-        self::assertSame('<b>', esc_html('<b>'));
+        self::assertSame('North', esc_html('North'));
+        self::assertSame('North', esc_attr('North'));
+    }
+
+    /**
+     * These used to pass their input through, on the reasoning that modelling
+     * escaping would mean asserting against the stub rather than the code.
+     *
+     * It meant no escaping bug in a consuming plugin could fail a test, and
+     * one duly shipped: Confur's HtmlHelper::createLink() built an <a> tag
+     * from raw input, and the first regression tests written for it passed
+     * against the unfixed code.
+     */
+    public function testEscHtmlAndEscAttrNeutraliseMarkup(): void
+    {
+        self::assertSame('&lt;b&gt;', esc_html('<b>'));
+        self::assertSame('&quot; onfocus=&quot;x', esc_attr('" onfocus="x'));
+        self::assertSame('&#039;', esc_attr("'"));
+    }
+
+    /**
+     * Core passes double_encode = false, so an entity already in the string is
+     * left alone rather than becoming &amp;amp;.
+     */
+    public function testEscHtmlDoesNotDoubleEncodeAnExistingEntity(): void
+    {
+        self::assertSame('a &amp; b', esc_html('a &amp; b'));
+    }
+
+    /**
+     * esc_textarea() is the exception: textarea content is literal text, so
+     * core double-encodes there.
+     */
+    public function testEscTextareaDoubleEncodes(): void
+    {
+        self::assertSame('a &amp;amp; b', esc_textarea('a &amp; b'));
+    }
+
+    public function testEscUrlRefusesADisallowedProtocol(): void
+    {
+        self::assertSame('', esc_url('javascript:alert(1)'));
+        self::assertSame('', esc_url_raw('javascript:alert(1)'));
+        self::assertSame('', esc_url('data:text/html;base64,PHN2Zz4='));
+    }
+
+    /**
+     * Whitespace and control characters inside the scheme are how a refused
+     * protocol gets smuggled past a check that only looks at the prefix.
+     */
+    public function testEscUrlRefusesASchemeSplitByControlCharacters(): void
+    {
+        self::assertSame('', esc_url("java\nscript:alert(1)"));
+        self::assertSame('', esc_url("java\tscript:alert(1)"));
+    }
+
+    public function testEscUrlHonoursAnExplicitProtocolList(): void
+    {
+        self::assertSame('', esc_url('https://a.test/x', ['mailto']));
+        self::assertSame('mailto:a@b.test', esc_url('mailto:a@b.test', ['mailto']));
+    }
+
+    /**
+     * A URL with no scheme is left alone — core permits those, and refusing
+     * them would break every relative link a consumer builds.
+     */
+    public function testEscUrlLeavesRelativeUrlsAlone(): void
+    {
+        self::assertSame('/meetings/?x=1', esc_url_raw('/meetings/?x=1'));
+        self::assertSame('#frag', esc_url_raw('#frag'));
+    }
+
+    /**
+     * The display form encodes the two characters core encodes; the raw form,
+     * meant for storage and HTTP clients, does not.
+     */
+    public function testEscUrlEncodesForDisplayButEscUrlRawDoesNot(): void
+    {
+        self::assertSame('https://a.test/?a=1&#038;b=2', esc_url('https://a.test/?a=1&b=2'));
+        self::assertSame('https://a.test/?a=1&b=2', esc_url_raw('https://a.test/?a=1&b=2'));
+    }
+
+    /**
+     * Removing the tags but leaving the body behind would read as "escaped" to
+     * a careless assertion, so the element goes with its contents.
+     */
+    public function testWpKsesPostRemovesScriptElementsEntirely(): void
+    {
+        self::assertSame('', wp_kses_post('<script>alert(1)</script>'));
+        self::assertStringNotContainsString('alert(1)', wp_kses_post('<script>alert(1)</script>'));
+    }
+
+    public function testWpKsesPostRemovesEventHandlerAttributes(): void
+    {
+        self::assertStringNotContainsString('onclick', wp_kses_post('<a href="/x" onclick="alert(1)">y</a>'));
+        self::assertStringNotContainsString('onerror', wp_kses_post('<img src="/x" onerror=alert(1)>'));
+    }
+
+    public function testWpKsesPostKeepsOrdinaryMarkup(): void
+    {
+        self::assertSame('<b>North</b>', wp_kses_post('<b>North</b>'));
+        self::assertStringContainsString('href="/x"', wp_kses_post('<a href="/x">y</a>'));
+    }
+
+    public function testWpKsesPostDropsAJavascriptHref(): void
+    {
+        self::assertStringNotContainsString('javascript:', wp_kses_post('<a href="javascript:alert(1)">y</a>'));
+    }
+
+    /**
+     * __() and esc_html__() are not interchangeable; a stub treating them as
+     * such hides the one bug worth catching.
+     */
+    public function testTheTranslateAndEscapeHelpersEscape(): void
+    {
+        self::assertSame('&lt;b&gt;', esc_html__('<b>', 'd'));
+        self::assertSame('&lt;b&gt;', esc_attr__('<b>', 'd'));
+        self::assertSame('<b>', __('<b>', 'd'), '__() translates only');
+    }
+
+    public function testSanitizeEmailReturnsEmptyForSomethingThatIsNotAnAddress(): void
+    {
+        self::assertSame('a@b.test', sanitize_email(' a@b.test '));
+        self::assertSame('', sanitize_email('not-an-email'));
     }
 
     /**
