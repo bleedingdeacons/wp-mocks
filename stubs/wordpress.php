@@ -346,14 +346,18 @@ if (!function_exists('wp_mocks_filter_url')) {
      */
     function wp_mocks_filter_url(string $url, ?array $protocols = null): string
     {
-        $url = trim($url);
         if ($url === '') {
             return '';
         }
 
-        // Control characters and whitespace inside a URL are how a refused
-        // scheme gets smuggled past a naive check (`java\nscript:`).
-        $url = (string) preg_replace('/[\x00-\x20\x7F]/', '', $url);
+        // Core's order, and it matters: a space becomes %20 rather than being
+        // dropped, so `tel:07700 900123` keeps its shape instead of silently
+        // losing a character. Only then are the characters core does not
+        // permit removed — which is what closes `java\nscript:`, since the
+        // newline goes and the scheme check below then sees `javascript:`.
+        $url = str_replace(' ', '%20', ltrim($url));
+        $url = (string) preg_replace('|[^a-z0-9\-~+_.?#=!&;,/:%@$\|*\'()\[\]\\x80-\\xff]|i', '', $url);
+
         if ($url === '') {
             return '';
         }
