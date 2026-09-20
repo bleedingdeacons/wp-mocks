@@ -76,7 +76,7 @@ final class PackageConstraintsTest extends PHPUnitTestCase
     {
         $constraint = $this->composerJson()['require-dev']['phpunit/phpunit'] ?? '';
 
-        foreach (['^10.5', '^11.0', '^12.0'] as $major) {
+        foreach (['^10.5', '^11.0', '^12.0', '^13.0'] as $major) {
             self::assertStringContainsString($major, $constraint);
         }
     }

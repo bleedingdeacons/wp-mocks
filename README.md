@@ -259,6 +259,6 @@ composer test
 composer stan
 ```
 
-CI runs the suite against PHPUnit 10.5, 11 and 12 on PHP 8.1 and 8.3. The
+CI runs the suite against PHPUnit 10.5, 11, 12 and 13 on PHP 8.4 and 8.5. The
 matrix is the point: it is what stops this package quietly acquiring a PHPUnit
 ceiling of its own.
